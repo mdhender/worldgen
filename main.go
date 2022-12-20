@@ -50,13 +50,17 @@ const (
 )
 
 var (
+	showGlobe = false
+
 	WorldMapArray []int
 	Histogram     [256]int
 	FilledPixels  int
 
 	SinIterPhi []float64
 
-	ProjectionType = SQUARE // SPHERICAL //MERCATOR // SQUARE
+	ProjectionType = MERCATOR // SQUARE
+	ScrollDegrees  = 0
+	ScrollDistance int
 
 	XRange = 6400 // 320
 	YRange = 3200 // 160
@@ -67,6 +71,9 @@ var (
 
 func main() {
 	started := time.Now()
+
+	// save color card
+	ColorCard(true)
 
 	//argc, argv := len(os.Args), os.Args
 
@@ -126,9 +133,9 @@ func main() {
 	//rand.Seed(time.Now().UnixNano())
 	rand.Seed(int64(Seed))
 
-	NumberOfFaults := 10_000
-	PercentWater := 15
-	PercentIce := 2
+	NumberOfFaults := 50_000
+	PercentWater := 55
+	PercentIce := 7
 	log.Printf("Seed: %d\n", Seed)
 	log.Printf("Number of faults: %d\n", NumberOfFaults)
 	log.Printf("Percent water: %d\n", PercentWater)
@@ -162,6 +169,9 @@ func main() {
 	for j, row = 0, 0; j < XRange/2; j++ {
 		for i = 1; i < YRange; i++ { /* fix */
 			WorldMapArray[row+index2+YRange-i] = WorldMapArray[row+i]
+			//if WorldMapArray[row+index2+YRange-i] != math.MinInt {
+			//	WorldMapArray[row+index2+YRange-i] += -2 + rand.Intn(5)
+			//}
 		}
 		row += YRange
 	}
@@ -315,11 +325,15 @@ func main() {
 	}
 	log.Printf("finished map generation: %v\n", time.Now().Sub(started))
 
-	/* Write GIF to stdout */
+	/* Somehow, this seems to be the easy way of patching the problem of scrolling the wrong direction... ;) */
+	ScrollDegrees = 33
+	ScrollDistance = -1 * int((float64(ScrollDegrees%360))*(float64(XRange)/360))
+
+	// create map
 	var m *image.RGBA
 	var saveFile string
 	switch ProjectionType {
-	case ORTHOGRAPHIC_NP, ORTHOGRAPHIC_SP, STEREOGRAPHIC_NP, STEREOGRAPHIC_SP, GNOMIC_NP, GNOMIC_SP, LAMBERT_AREAP_NP, LAMBERT_AREAP_SP, SPHERICAL:
+	case ORTHOGRAPHIC_NP, ORTHOGRAPHIC_SP, STEREOGRAPHIC_NP, STEREOGRAPHIC_SP, GNOMIC_NP, GNOMIC_SP, LAMBERT_AREAP_NP, LAMBERT_AREAP_SP:
 		/*
 		 * If it's a spherical projection, it will be a square map we output.
 		 */
@@ -327,13 +341,33 @@ func main() {
 		if 2*(Height/2)-Height != 0 {
 			Diameter++
 		}
-		//Radius   := Diameter/2;
-		//RSquared := Radius*Radius;
+		saveFile = "other"
+		m = Project(ProjectionType, Diameter, Diameter, ScrollDegrees)
+	case MERCATOR:
+		saveFile = "mercator"
+		m = Project(ProjectionType, XRange, YRange, 0)
+	case SPHERICAL:
+		// spherical projection, but still a square map on output
+		Diameter := Height
+		if 2*(Height/2)-Height != 0 {
+			Diameter++
+		}
 		saveFile = "spherical"
-		m = Project(ProjectionType, Diameter, Diameter)
+		if showGlobe {
+			for degrees := 0; degrees < 360; degrees = degrees + 15 {
+				m = Project(ProjectionType, Diameter, Diameter, degrees)
+				outFile, err := os.Create(fmt.Sprintf("%s-%03d.png", saveFile, degrees))
+				if err != nil {
+					log.Fatal(err)
+				}
+				_ = png.Encode(outFile, m)
+				_ = outFile.Close()
+			}
+		}
+		m = Project(ProjectionType, Diameter, Diameter, ScrollDegrees)
 	default:
 		saveFile = "rectangle"
-		m = Project(ProjectionType, XRange, YRange)
+		m = Project(ProjectionType, XRange, YRange, 0)
 	}
 	saveFile = fmt.Sprintf("%x-%s.png", Seed, saveFile)
 	outFile, err := os.Create(saveFile)

@@ -22,6 +22,10 @@ package main
 import (
 	"image"
 	"image/color"
+	"image/png"
+	"log"
+	"math"
+	"os"
 )
 
 var (
@@ -75,13 +79,77 @@ var (
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 )
 
-func Project(projectionType int, xRange, yRange int) *image.RGBA {
+func ColorCard(borg bool) {
+	width, height := 1280, 640
+	m := image.NewRGBA(image.Rect(0, 0, width, height))
+	for x := 0; x < width; x++ {
+		for y := 0; y < height; y++ {
+			c := x * y % 50
+			pc := color.RGBA{R: Red[c], G: Green[c], B: Blue[c], A: 255}
+			m.Set(x, y, pc)
+		}
+	}
+	outFile, err := os.Create("color-card.png")
+	if err != nil {
+		log.Fatal(err)
+	}
+	_ = png.Encode(outFile, m)
+	_ = outFile.Close()
+	if borg {
+		os.Exit(0)
+	}
+}
+
+func Project(projectionType int, xRange, yRange int, scrollDegrees int) *image.RGBA {
 	m := image.NewRGBA(image.Rect(0, 0, xRange, yRange))
 	switch projectionType {
+	case SPHERICAL:
+		projectSpherical(m, Height, scrollDegrees)
 	default:
 		projectSquare(m, xRange, yRange)
 	}
 	return m
+}
+
+func projectSpherical(m *image.RGBA, height int, scrollDegrees int) {
+	diameter := height
+	if 2*(height/2)-height != 0 {
+		diameter++
+	}
+	radius := diameter / 2
+	rSquared := radius * radius
+	xRange, yRange := diameter, diameter
+	xRange64, yRange64 := float64(xRange), float64(yRange)
+
+	scrollDistance := -1 * int((float64(scrollDegrees%360))*(float64(XRange)/360))
+
+	for x := 0; x < xRange; x++ {
+		for y := 0; y < yRange; y++ {
+			newX, newY := x-radius, y-radius
+
+			temp := newX*newX + newY*newY
+			if temp > rSquared {
+				// point is not within the circle
+				continue
+			}
+			sphereX := math.Sqrt(float64(rSquared - temp))
+
+			newX = (int)((math.Atan((float64(newX))/sphereX)*xRange64/math.Pi+xRange64)/2) + scrollDistance
+			if newX < 0 {
+				newX = XRange - 1 - ((-1 * newX) % XRange)
+			}
+			if newX >= XRange {
+				newX = newX % XRange
+			}
+
+			theta := math.Acos((float64(newY)) / (float64(radius)))
+			newY = YRange - int(theta*yRange64/math.Pi)
+
+			height := WorldMapArray[newX*YRange+newY]
+			pc := color.RGBA{R: Red[height], G: Green[height], B: Blue[height], A: 255}
+			m.Set(x, y, pc)
+		}
+	}
 }
 
 func projectSquare(m *image.RGBA, xRange, yRange int) {
