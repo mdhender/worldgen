@@ -20,19 +20,33 @@
 package main
 
 import (
-	"bytes"
+	"fmt"
+	"image"
+	"image/png"
 	"log"
 	"math"
 	"math/rand"
+	"os"
 	"time"
 )
 
 const (
-	XRange = 6400 // 320
-	YRange = 3200 // 160
+	Height = 320
 
-	YRangeDiv2  = float64(YRange) / 2
-	YRangeDivPI = float64(YRange) / math.Pi
+	SQUARE           = 0
+	MERCATOR         = 1
+	SPHERICAL        = 2
+	ORTHOGRAPHIC_NP  = 3
+	ORTHOGRAPHIC_SP  = 4
+	STEREOGRAPHIC_NP = 5
+	STEREOGRAPHIC_SP = 6
+	GNOMIC_NP        = 7
+	GNOMIC_SP        = 8
+	LAMBERT_AREAP_NP = 9
+	LAMBERT_AREAP_SP = 10
+
+	HEIGHT = 0
+	RADIUS = 1
 )
 
 var (
@@ -41,6 +55,14 @@ var (
 	FilledPixels  int
 
 	SinIterPhi []float64
+
+	ProjectionType = SQUARE // SPHERICAL //MERCATOR // SQUARE
+
+	XRange = 6400 // 320
+	YRange = 3200 // 160
+
+	YRangeDiv2  float64
+	YRangeDivPI float64
 )
 
 func main() {
@@ -48,13 +70,51 @@ func main() {
 
 	//argc, argv := len(os.Args), os.Args
 
+	TwoColorMode := false
 	var Color int
-	var i, j, row, TwoColorMode int
+	var i, j, row int
 	var index2 int
 	var Threshold int
 	var Cur int
-	var SaveName string /* 255 character filenames should be enough? */
-	var SaveFile string /* SaveName + .gif */
+
+	//Mode := HEIGHT
+
+	switch ProjectionType {
+	case SQUARE:
+		YRange = Height
+		XRange = 2 * YRange
+	case MERCATOR:
+		YRange = Height
+		XRange = int(float64(YRange) * math.Pi / 2)
+		if 2*(XRange/2)-XRange != 0 {
+			XRange++
+		}
+	case SPHERICAL:
+		YRange = int(math.Round(Height * math.Pi / 2))
+		XRange = int(math.Round(Height * math.Pi))
+	case ORTHOGRAPHIC_NP, ORTHOGRAPHIC_SP:
+		YRange = int(math.Round(Height * math.Pi / 2))
+		XRange = int(math.Round(Height * math.Pi))
+	case STEREOGRAPHIC_NP, STEREOGRAPHIC_SP:
+		YRange = Height
+		XRange = int(math.Round(Height * math.Pi))
+	case GNOMIC_NP, GNOMIC_SP:
+		YRange = int(math.Round(Height * math.Pi / 2))
+		XRange = int(math.Round(Height * math.Pi))
+	case LAMBERT_AREAP_NP, LAMBERT_AREAP_SP:
+		YRange = Height
+		XRange = int(math.Round(Height * math.Pi))
+	}
+	// cache some frequently used values based on the size of the world
+	YRangeDiv2 = float64(YRange) / 2
+	YRangeDivPI = float64(YRange) / math.Pi
+
+	switch ProjectionType {
+	case SQUARE, MERCATOR:
+		log.Printf("WIDTH=%d HEIGHT=%d\n", XRange, YRange)
+	default:
+		log.Printf("WIDTH=%d HEIGHT=%d\n", Height, Height)
+	}
 
 	SinIterPhi = make([]float64, 2*XRange, 2*XRange)
 	for i = 0; i < XRange; i++ {
@@ -69,15 +129,10 @@ func main() {
 	NumberOfFaults := 10_000
 	PercentWater := 15
 	PercentIce := 2
-	SaveName = "olson"
 	log.Printf("Seed: %d\n", Seed)
 	log.Printf("Number of faults: %d\n", NumberOfFaults)
 	log.Printf("Percent water: %d\n", PercentWater)
 	log.Printf("Percent ice: %d\n", PercentIce)
-
-	log.Printf("Save as (.GIF will be appended): %q\n", SaveName)
-
-	//srand(Seed);
 
 	WorldMapArray = make([]int, XRange*YRange, XRange*YRange)
 	for j, row = 0, 0; j < XRange; j++ {
@@ -90,8 +145,14 @@ func main() {
 	log.Printf("filled %d x %d world map: %v\n", XRange, YRange, time.Now().Sub(started))
 
 	/* Generate the map! */
-	for a := 0; a < NumberOfFaults; a++ {
-		FractureWorldMap(rand.Intn(2) == 0)
+	if ProjectionType == MERCATOR {
+		for a := 0; a < NumberOfFaults; a++ {
+			GenerateMercatorWorldMap(rand.Intn(2) == 0)
+		}
+	} else {
+		for a := 0; a < NumberOfFaults; a++ {
+			GenerateSquareWorldMap(rand.Intn(2) == 0)
+		}
 	}
 	log.Printf("generated %d faults: %v\n", NumberOfFaults, time.Now().Sub(started))
 
@@ -111,7 +172,7 @@ func main() {
 		/* We have to start somewhere, and the top row was initialized to 0,
 		 * but it might have changed during the iterations... */
 		Color = WorldMapArray[row]
-		for i := 1; i < YRange; i++ {
+		for i = 1; i < YRange; i++ {
 			/* We "fill" all positions with values != INT_MIN with Color */
 			Cur = WorldMapArray[row+i]
 			if Cur != math.MinInt {
@@ -142,8 +203,7 @@ func main() {
 	 * later version of this program. */
 	for j, row = 0, 0; j < XRange; j++ {
 		for i = 0; i < YRange; i++ {
-			Color = WorldMapArray[row+i]
-			Color = int(((float64(Color-MinZ+1) / float64(MaxZ-MinZ+1)) * 30) + 1)
+			Color = int(((float64(WorldMapArray[row+i]-MinZ+1) / float64(MaxZ-MinZ+1)) * 30) + 1)
 			Histogram[Color]++
 		}
 		row += YRange
@@ -156,8 +216,11 @@ func main() {
 
 	/* "Integrate" the histogram to decide where to put sea-level */
 	Count := 0
-	for j = 0; j < 256 && Count <= Threshold; j++ {
+	for j = 0; j < 256; j++ {
 		Count += Histogram[j]
+		if Count > Threshold {
+			break
+		}
 	}
 	log.Printf("integrated histogram %d %d / %d: %v\n", j, Count, Threshold, time.Now().Sub(started))
 
@@ -165,7 +228,7 @@ func main() {
 	Threshold = j*(MaxZ-MinZ+1)/30 + MinZ
 	log.Printf("threshold is %d * (%d - %d + 1) / 30 + %d: %d: %v\n", j, MaxZ, MinZ, MinZ, Threshold, time.Now().Sub(started))
 
-	if TwoColorMode != 0 {
+	if TwoColorMode {
 		for j, row = 0, 0; j < XRange; j++ {
 			for i = 0; i < YRange; i++ {
 				Color = WorldMapArray[row+i]
@@ -184,7 +247,6 @@ func main() {
 		for j, row = 0, 0; j < XRange; j++ {
 			for i = 0; i < YRange; i++ {
 				Color = WorldMapArray[row+i]
-
 				if Color < Threshold {
 					Color = int(((float64(Color-MinZ) / float64(Threshold-MinZ)) * 15) + 1)
 				} else {
@@ -194,8 +256,8 @@ func main() {
 				/* Just in case... I DON't want the GIF-saver to flip out! :) */
 				if Color < 1 {
 					Color = 1
-				} else if Color > 32 { // was 255?
-					Color = 31
+				} else if Color > 255 {
+					Color = 255
 				}
 				WorldMapArray[row+i] = Color
 			}
@@ -253,17 +315,35 @@ func main() {
 	}
 	log.Printf("finished map generation: %v\n", time.Now().Sub(started))
 
-	/* append .gif to SaveFile */
-	SaveFile = SaveName + ".gif"
-	/* open binary SaveFile */
-	Save := &bytes.Buffer{}
+	/* Write GIF to stdout */
+	var m *image.RGBA
+	var saveFile string
+	switch ProjectionType {
+	case ORTHOGRAPHIC_NP, ORTHOGRAPHIC_SP, STEREOGRAPHIC_NP, STEREOGRAPHIC_SP, GNOMIC_NP, GNOMIC_SP, LAMBERT_AREAP_NP, LAMBERT_AREAP_SP, SPHERICAL:
+		/*
+		 * If it's a spherical projection, it will be a square map we output.
+		 */
+		Diameter := Height
+		if 2*(Height/2)-Height != 0 {
+			Diameter++
+		}
+		//Radius   := Diameter/2;
+		//RSquared := Radius*Radius;
+		saveFile = "spherical"
+		m = Project(ProjectionType, Diameter, Diameter)
+	default:
+		saveFile = "rectangle"
+		m = Project(ProjectionType, XRange, YRange)
+	}
+	saveFile = fmt.Sprintf("%x-%s.png", Seed, saveFile)
+	outFile, err := os.Create(saveFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	_ = png.Encode(outFile, m)
+	_ = outFile.Close()
 
-	/* Write GIF to savefile */
-	//GIFEncode(Save, XRange, YRange, 1, 0, 8, Red, Green, Blue)
-	CreateImage()
-	log.Printf("created image: %v\n", time.Now().Sub(started))
-
-	log.Printf("Map created, saved as %s (%d bytes).\n", SaveFile, len(Save.Bytes()))
+	log.Printf("created image: %s: %v\n", saveFile, time.Now().Sub(started))
 }
 
 /* 4-connective floodfill algorithm which I use for constructing the ice-caps.*/
@@ -297,7 +377,7 @@ func FloodFill4(x, y, OldColor int) {
 }
 
 /* Function that generates the worldmap */
-func FractureWorldMap(lower bool) {
+func GenerateMercatorWorldMap(lower bool) {
 	/* Create a random greatcircle...
 	 * Start with an equator and rotate it */
 	Alpha := (rand64() - 0.5) * math.Pi /* Rotate around x-axis */
@@ -307,9 +387,42 @@ func FractureWorldMap(lower bool) {
 
 	Xsi := int((float64(XRange)/2 - float64(XRange)/math.Pi) * Beta)
 
-	var Phi, Theta, row int
-	for Phi = 0; Phi < XRange/2; Phi++ {
-		Theta = int((YRangeDivPI * math.Atan(SinIterPhi[Xsi-Phi+XRange]*TanB)) + YRangeDiv2)
+	for Phi, row := 0, 0; Phi < XRange/2; Phi++ {
+		// ( tan ( atan ( SinIterPhi[Xsi-Phi+XRange] * TanB ) / 2 ) * YRangeDiv2 ) + YRangeDiv2;
+		Theta := int((math.Tan(math.Atan(SinIterPhi[Xsi-Phi+XRange]*TanB)/2) * YRangeDiv2) + YRangeDiv2)
+
+		if lower {
+			/* lower southern hemisphere */
+			if WorldMapArray[row+Theta] != math.MinInt {
+				WorldMapArray[row+Theta]--
+			} else {
+				WorldMapArray[row+Theta] = -1
+			}
+		} else {
+			/* raise southern hemisphere */
+			if WorldMapArray[row+Theta] != math.MinInt {
+				WorldMapArray[row+Theta]++
+			} else {
+				WorldMapArray[row+Theta] = 1
+			}
+		}
+		row += YRange
+	}
+}
+
+/* Function that generates the worldmap */
+func GenerateSquareWorldMap(lower bool) {
+	/* Create a random greatcircle...
+	 * Start with an equator and rotate it */
+	Alpha := (rand64() - 0.5) * math.Pi /* Rotate around x-axis */
+	Beta := (rand64() - 0.5) * math.Pi  /* Rotate around y-axis */
+
+	TanB := math.Tan(math.Acos(math.Cos(Alpha) * math.Cos(Beta)))
+
+	Xsi := int((float64(XRange)/2 - float64(XRange)/math.Pi) * Beta)
+
+	for Phi, row := 0, 0; Phi < XRange/2; Phi++ {
+		Theta := int((YRangeDivPI * math.Atan(SinIterPhi[Xsi-Phi+XRange]*TanB)) + YRangeDiv2)
 		if lower {
 			/* lower southern hemisphere */
 			if WorldMapArray[row+Theta] != math.MinInt {
