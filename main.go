@@ -73,7 +73,7 @@ func main() {
 	started := time.Now()
 
 	// save color card
-	ColorCard(true)
+	ColorCard(false)
 
 	//argc, argv := len(os.Args), os.Args
 

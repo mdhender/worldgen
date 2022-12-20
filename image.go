@@ -81,11 +81,12 @@ var (
 
 func ColorCard(borg bool) {
 	width, height := 1280, 640
+	cardsPerRow := width / 50
 	m := image.NewRGBA(image.Rect(0, 0, width, height))
 	for x := 0; x < width; x++ {
+		c := x / cardsPerRow
+		pc := color.RGBA{R: Red[c], G: Green[c], B: Blue[c], A: 255}
 		for y := 0; y < height; y++ {
-			c := x * y % 50
-			pc := color.RGBA{R: Red[c], G: Green[c], B: Blue[c], A: 255}
 			m.Set(x, y, pc)
 		}
 	}
