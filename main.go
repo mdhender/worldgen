@@ -44,6 +44,7 @@ const (
 	GNOMIC_SP        = 8
 	LAMBERT_AREAP_NP = 9
 	LAMBERT_AREAP_SP = 10
+	KACHUNK          = 11
 
 	HEIGHT = 0
 	RADIUS = 1
@@ -58,7 +59,7 @@ var (
 
 	SinIterPhi []float64
 
-	ProjectionType = MERCATOR // SQUARE
+	ProjectionType = KACHUNK // MERCATOR // SQUARE
 	ScrollDegrees  = 0
 	ScrollDistance int
 
@@ -87,6 +88,9 @@ func main() {
 	//Mode := HEIGHT
 
 	switch ProjectionType {
+	case KACHUNK:
+		YRange = Height
+		XRange = 2 * YRange
 	case SQUARE:
 		YRange = Height
 		XRange = 2 * YRange
@@ -133,9 +137,9 @@ func main() {
 	//rand.Seed(time.Now().UnixNano())
 	rand.Seed(int64(Seed))
 
-	NumberOfFaults := 50_000
-	PercentWater := 55
-	PercentIce := 7
+	NumberOfFaults := 1
+	PercentWater := 0
+	PercentIce := 0
 	log.Printf("Seed: %d\n", Seed)
 	log.Printf("Number of faults: %d\n", NumberOfFaults)
 	log.Printf("Percent water: %d\n", PercentWater)
@@ -152,30 +156,50 @@ func main() {
 	log.Printf("filled %d x %d world map: %v\n", XRange, YRange, time.Now().Sub(started))
 
 	/* Generate the map! */
-	if ProjectionType == MERCATOR {
+	hasSymetry := false
+	switch ProjectionType {
+	case KACHUNK:
+		for x := 0; x < XRange; x++ {
+			for y := 0; y < YRange; y++ {
+				WorldMapArray[x*YRange+y] = 0
+			}
+		}
+		for a := 0; a < NumberOfFaults; a++ {
+			FractureKachunk(XRange, YRange)
+		}
+		//m := Project(ProjectionType, XRange, YRange, 0)
+		//outFile, err := os.Create("kachunk.png")
+		//if err != nil {
+		//	log.Fatal(err)
+		//}
+		//_ = png.Encode(outFile, m)
+		//_ = outFile.Close()
+		//os.Exit(0)
+	case MERCATOR:
+		hasSymetry = true
 		for a := 0; a < NumberOfFaults; a++ {
 			GenerateMercatorWorldMap(rand.Intn(2) == 0)
 		}
-	} else {
+	default:
+		hasSymetry = true
 		for a := 0; a < NumberOfFaults; a++ {
 			GenerateSquareWorldMap(rand.Intn(2) == 0)
 		}
 	}
 	log.Printf("generated %d faults: %v\n", NumberOfFaults, time.Now().Sub(started))
 
-	/* Copy data (I have only calculated faults for 1/2 the image.
-	 * I can do this due to symmetry... :) */
-	index2 = (XRange / 2) * YRange
-	for j, row = 0, 0; j < XRange/2; j++ {
-		for i = 1; i < YRange; i++ { /* fix */
-			WorldMapArray[row+index2+YRange-i] = WorldMapArray[row+i]
-			//if WorldMapArray[row+index2+YRange-i] != math.MinInt {
-			//	WorldMapArray[row+index2+YRange-i] += -2 + rand.Intn(5)
-			//}
+	if hasSymetry {
+		/* Copy data (I have only calculated faults for 1/2 the image.
+		 * I can do this due to symmetry... :) */
+		index2 = (XRange / 2) * YRange
+		for j, row = 0, 0; j < XRange/2; j++ {
+			for i = 1; i < YRange; i++ { /* fix */
+				WorldMapArray[row+index2+YRange-i] = WorldMapArray[row+i]
+			}
+			row += YRange
 		}
-		row += YRange
+		log.Printf("flipped the image: %v\n", time.Now().Sub(started))
 	}
-	log.Printf("flipped the image: %v\n", time.Now().Sub(started))
 
 	/* Reconstruct the real WorldMap from the WorldMapArray and FaultArray */
 	for j, row = 0, 0; j < XRange; j++ {
@@ -252,8 +276,7 @@ func main() {
 		}
 		log.Printf("filled two color mode: %v\n", time.Now().Sub(started))
 	} else {
-		/* Scale WorldMapArray to color range in a way that gives you
-		 * a certain Ocean/Land ratio */
+		/* Scale WorldMapArray to color range in a way that gives you a certain Ocean/Land ratio */
 		for j, row = 0, 0; j < XRange; j++ {
 			for i = 0; i < YRange; i++ {
 				Color = WorldMapArray[row+i]
@@ -343,6 +366,9 @@ func main() {
 		}
 		saveFile = "other"
 		m = Project(ProjectionType, Diameter, Diameter, ScrollDegrees)
+	case KACHUNK:
+		saveFile = "kachunk"
+		m = Project(ProjectionType, XRange, YRange, 0)
 	case MERCATOR:
 		saveFile = "mercator"
 		m = Project(ProjectionType, XRange, YRange, 0)
@@ -365,6 +391,9 @@ func main() {
 			}
 		}
 		m = Project(ProjectionType, Diameter, Diameter, ScrollDegrees)
+	case SQUARE:
+		saveFile = "square"
+		m = Project(ProjectionType, XRange, YRange, 0)
 	default:
 		saveFile = "rectangle"
 		m = Project(ProjectionType, XRange, YRange, 0)
@@ -406,6 +435,46 @@ func FloodFill4(x, y, OldColor int) {
 			FloodFill4(0, y, OldColor)
 		} else {
 			FloodFill4(x+1, y, OldColor)
+		}
+	}
+}
+
+/* Function that generates the worldmap */
+func FractureKachunk(width, height int) {
+	// decide if we're going to raise or lower
+	lower := rand.Intn(2) == 0
+
+	// create a random line on the world map
+	var m, b float64
+	for {
+		x1, y1 := rand.Intn(width), rand.Intn(height)
+		x2, y2 := rand.Intn(width), rand.Intn(height)
+		if x1 == x2 && y1 == y2 { // want a line, not a single point
+			continue
+		} else if y1 == y2 { // can't have vertical lines
+			continue
+		}
+		m = float64(x1-x2) / float64(y1-y2)
+		b = rand.Float64() * float64(height)
+		break
+	}
+
+	// y = (() / ()) x
+	log.Printf("kachunk: line y = %f x + %f: lower %v\n", m, b, lower)
+
+	// move all the points below the line up or down
+	for x := 0; x < width; x++ {
+		xl := float64(x)
+		for y := 0; y < height; y++ {
+			yl := m*xl + b
+			if float64(y)-yl > 0 {
+				// point is below the line
+				if lower {
+					WorldMapArray[x*YRange+y]--
+				} else {
+					WorldMapArray[x*YRange+y]++
+				}
+			}
 		}
 	}
 }

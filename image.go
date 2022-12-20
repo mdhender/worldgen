@@ -104,6 +104,8 @@ func ColorCard(borg bool) {
 func Project(projectionType int, xRange, yRange int, scrollDegrees int) *image.RGBA {
 	m := image.NewRGBA(image.Rect(0, 0, xRange, yRange))
 	switch projectionType {
+	case KACHUNK:
+		projectSquare(m, xRange, yRange)
 	case SPHERICAL:
 		projectSpherical(m, Height, scrollDegrees)
 	default:
