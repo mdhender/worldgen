@@ -1,14 +1,20 @@
-## Fractal Worldmap Generator
+# Fractal Worldmap Generator
 
+# Original C Version
 Creator: John Olsson
 
 Thanks to Carl Burke for interesting discussions and suggestions of how to speed up the generation! :)
 
-This program is provided as is, and it's basically a "hack". So if you want a better userinterface, you will have to provide it by yourself!
+This program is provided as is, and it's basically a "hack".
+So if you want a better user interface, you will have to provide it by yourself!
 
-For ideas about how to implement different projections, you can always look in WorldMapGenerator.c (the CGI program that generates the gifs on my www-page [http://www.lysator.liu.se/~johol/fwmg/fwmg.html].
+For ideas about how to implement different projections,
+you can always look in WorldMapGenerator.c
+(the CGI program that generates the gifs on my www-page [http://www.lysator.liu.se/~johol/fwmg/fwmg.html].
 
-Please visit my WWW-pages located at: [http://www.lysator.liu.se/~johol/]. You can send E-Mail to this adress: johol@lysator.liu.se
+Please visit my WWW-pages located at: [http://www.lysator.liu.se/~johol/].
+
+You can send E-Mail to this address: johol@lysator.liu.se
 
 I compile this program with: ```gcc -O3 worldgen.c -lm -o gengif```
 

@@ -1,0 +1,16 @@
+*~
+*.dll
+*.dylib
+*.exe
+*.gz
+*.out
+*.so
+*.swp
+*.tar
+*.test
+*.tgz
+*.zip
+*.Z
+
+.idea/
+notes.txt
