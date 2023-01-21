@@ -53,13 +53,14 @@ const (
 var (
 	showGlobe = false
 
-	WorldMapArray []int
-	Histogram     [256]int
-	FilledPixels  int
+	colorMap     [][]int
+	heightMap    [][]int
+	Histogram    [256]int
+	FilledPixels int
 
 	SinIterPhi []float64
 
-	ProjectionType = KACHUNK // MERCATOR // SQUARE
+	ProjectionType = SQUARE
 	ScrollDegrees  = 0
 	ScrollDistance int
 
@@ -81,9 +82,7 @@ func main() {
 	TwoColorMode := false
 	var Color int
 	var i, j, row int
-	var index2 int
 	var Threshold int
-	var Cur int
 
 	//Mode := HEIGHT
 
@@ -137,116 +136,101 @@ func main() {
 	//rand.Seed(time.Now().UnixNano())
 	rand.Seed(int64(Seed))
 
-	NumberOfFaults := 1
-	PercentWater := 0
-	PercentIce := 0
+	NumberOfFaults := 100
+	PercentWater := 10
+	PercentIce := 10
 	log.Printf("Seed: %d\n", Seed)
 	log.Printf("Number of faults: %d\n", NumberOfFaults)
 	log.Printf("Percent water: %d\n", PercentWater)
 	log.Printf("Percent ice: %d\n", PercentIce)
 
-	WorldMapArray = make([]int, XRange*YRange, XRange*YRange)
-	for j, row = 0, 0; j < XRange; j++ {
-		WorldMapArray[row] = 0
-		for i = 1; i < YRange; i++ {
-			WorldMapArray[i+row] = math.MinInt
+	/* Threshold now holds how many pixels PercentWater means */
+	Threshold = PercentWater * XRange * YRange / 100
+	log.Printf("threshold is %d: %v\n", Threshold, time.Now().Sub(started))
+
+	heightMap = twoDimensionalArray(XRange, YRange)
+	for row = 0; row < len(heightMap); row++ {
+		heightMap[row][0] = 0 // why store zero here?
+		for col := 1; col < len(heightMap[row]); col++ {
+			heightMap[row][col] = math.MinInt
 		}
-		row += YRange
 	}
 	log.Printf("filled %d x %d world map: %v\n", XRange, YRange, time.Now().Sub(started))
 
 	/* Generate the map! */
-	hasSymetry := false
+	hasSymmetry := false
 	switch ProjectionType {
 	case KACHUNK:
-		for x := 0; x < XRange; x++ {
-			for y := 0; y < YRange; y++ {
-				WorldMapArray[x*YRange+y] = 0
-			}
-		}
 		for a := 0; a < NumberOfFaults; a++ {
 			FractureKachunk(XRange, YRange)
 		}
-		//m := Project(ProjectionType, XRange, YRange, 0)
-		//outFile, err := os.Create("kachunk.png")
-		//if err != nil {
-		//	log.Fatal(err)
-		//}
-		//_ = png.Encode(outFile, m)
-		//_ = outFile.Close()
-		//os.Exit(0)
 	case MERCATOR:
-		hasSymetry = true
+		hasSymmetry = true
 		for a := 0; a < NumberOfFaults; a++ {
 			GenerateMercatorWorldMap(rand.Intn(2) == 0)
 		}
 	default:
-		hasSymetry = true
+		hasSymmetry = true
 		for a := 0; a < NumberOfFaults; a++ {
 			GenerateSquareWorldMap(rand.Intn(2) == 0)
 		}
 	}
 	log.Printf("generated %d faults: %v\n", NumberOfFaults, time.Now().Sub(started))
 
-	if hasSymetry {
-		/* Copy data (I have only calculated faults for 1/2 the image.
-		 * I can do this due to symmetry... :) */
-		index2 = (XRange / 2) * YRange
-		for j, row = 0, 0; j < XRange/2; j++ {
-			for i = 1; i < YRange; i++ { /* fix */
-				WorldMapArray[row+index2+YRange-i] = WorldMapArray[row+i]
+	if hasSymmetry {
+		// copy data. the generator calculated faults for 1/2 the image.
+		for row = 0; row < len(heightMap); row++ {
+			for col := 1; col < XRange/2; col++ {
+				heightMap[row][XRange-col] = heightMap[row][col]
 			}
-			row += YRange
 		}
 		log.Printf("flipped the image: %v\n", time.Now().Sub(started))
 	}
 
 	/* Reconstruct the real WorldMap from the WorldMapArray and FaultArray */
-	for j, row = 0, 0; j < XRange; j++ {
+	for row = 0; row < len(heightMap); row++ {
 		/* We have to start somewhere, and the top row was initialized to 0,
 		 * but it might have changed during the iterations... */
-		Color = WorldMapArray[row]
-		for i = 1; i < YRange; i++ {
-			/* We "fill" all positions with values != INT_MIN with Color */
-			Cur = WorldMapArray[row+i]
-			if Cur != math.MinInt {
-				Color += Cur
+		firstColValue := heightMap[row][0]
+		for col := 1; col < len(heightMap[row]); col++ {
+			/* We "fill" all positions with values != INT_MIN with firstColValue */
+			cur := heightMap[row][col]
+			if cur != math.MinInt {
+				firstColValue += cur
 			}
-			WorldMapArray[row+i] = Color
+			heightMap[row][col] = firstColValue
 		}
-		row += YRange
 	}
 	log.Printf("rebuilt the world map: %v\n", time.Now().Sub(started))
 
 	/* Compute MAX and MIN values in WorldMapArray */
 	MinZ, MaxZ := -1, 1
-	for j = 0; j < XRange*YRange; j++ {
-		Color = WorldMapArray[j]
-		if MinZ > Color {
-			MinZ = Color
-		}
-		if MaxZ < Color {
-			MaxZ = Color
+	for row = 0; row < len(heightMap); row++ {
+		for col := 0; col < len(heightMap[row]); col++ {
+			z := heightMap[row][col]
+			if z < MinZ {
+				MinZ = z
+			}
+			if z > MaxZ {
+				MaxZ = z
+			}
 		}
 	}
 	log.Printf("computed minz %d and maxz %d: %v\n", MinZ, MaxZ, time.Now().Sub(started))
 
-	/* Compute color-histogram of WorldMapArray.
-	 * This histogram is a very crude approximation, since all pixels are
-	 * considered of the same size... I will try to change this in a
-	 * later version of this program. */
-	for j, row = 0, 0; j < XRange; j++ {
-		for i = 0; i < YRange; i++ {
-			Color = int(((float64(WorldMapArray[row+i]-MinZ+1) / float64(MaxZ-MinZ+1)) * 30) + 1)
-			Histogram[Color]++
+	/* Compute color-histogram of WorldMapArray. */
+	rangeHeight := float64(MaxZ - MinZ + 1)
+	for row = 0; row < len(heightMap); row++ {
+		for col := 0; col < len(heightMap[row]); col++ {
+			normalizedHeight := float64(heightMap[row][col] - MinZ + 1)
+			Histogram[int(((normalizedHeight/rangeHeight)*30)+1)]++
 		}
-		row += YRange
 	}
 	log.Printf("computed histogram: %v\n", time.Now().Sub(started))
-
-	/* Threshold now holds how many pixels PercentWater means */
-	Threshold = PercentWater * XRange * YRange / 100
-	log.Printf("threshold is %d: %v\n", Threshold, time.Now().Sub(started))
+	for k := 0; k < len(Histogram); k += 8 {
+		log.Printf(" %7d %7d %7d %7d %7d %7d %7d %7d\n",
+			Histogram[k+0], Histogram[k+1], Histogram[k+2], Histogram[k+3], Histogram[k+4], Histogram[k+5], Histogram[k+6], Histogram[k+7])
+	}
 
 	/* "Integrate" the histogram to decide where to put sea-level */
 	Count := 0
@@ -262,25 +246,25 @@ func main() {
 	Threshold = j*(MaxZ-MinZ+1)/30 + MinZ
 	log.Printf("threshold is %d * (%d - %d + 1) / 30 + %d: %d: %v\n", j, MaxZ, MinZ, MinZ, Threshold, time.Now().Sub(started))
 
+	colorMap = twoDimensionalArray(XRange, YRange)
 	if TwoColorMode {
-		for j, row = 0, 0; j < XRange; j++ {
-			for i = 0; i < YRange; i++ {
-				Color = WorldMapArray[row+i]
+		for row = 0; row < len(heightMap); row++ {
+			for col := 0; col < len(heightMap[row]); col++ {
+				Color = heightMap[row][col]
 				if Color < Threshold {
-					WorldMapArray[row+i] = 3
+					heightMap[row][col] = 3
 				} else {
-					WorldMapArray[row+i] = 20
+					heightMap[row][col] = 20
 				}
+				colorMap[row][col] = heightMap[row][col]
 			}
-			row += YRange
 		}
 		log.Printf("filled two color mode: %v\n", time.Now().Sub(started))
 	} else {
 		/* Scale WorldMapArray to color range in a way that gives you a certain Ocean/Land ratio */
-		for j, row = 0, 0; j < XRange; j++ {
-			for i = 0; i < YRange; i++ {
-				Color = WorldMapArray[row+i]
-				if Color < Threshold {
+		for row = 0; row < len(heightMap); row++ {
+			for col := 0; col < len(heightMap[row]); col++ {
+				if heightMap[row][col] < Threshold {
 					Color = int(((float64(Color-MinZ) / float64(Threshold-MinZ)) * 15) + 1)
 				} else {
 					Color = int(((float64(Color-Threshold) / float64(MaxZ-Threshold)) * 15) + 16)
@@ -292,59 +276,39 @@ func main() {
 				} else if Color > 255 {
 					Color = 255
 				}
-				WorldMapArray[row+i] = Color
+				heightMap[row][col] = Color
+				colorMap[row][col] = heightMap[row][col]
 			}
-			row += YRange
 		}
 		log.Printf("scaled color range: %v\n", time.Now().Sub(started))
 
 		/* "Recycle" Threshold variable, and, eh, the variable still has something
 		 * like the same meaning... :) */
 		Threshold = PercentIce * XRange * YRange / 100
-
-		if Threshold <= 0 || Threshold > XRange*YRange {
-			goto Finished
-		}
-
-		FilledPixels = 0
-		/* i==y, j==x */
-		for i = 0; i < YRange; i++ {
-			for j, row = 0, 0; j < XRange; j++ {
-				Color = WorldMapArray[row+i]
-				if Color < 32 {
-					FloodFill4(j, i, Color)
+		if 0 < Threshold && Threshold <= XRange*YRange {
+			// fill from the "north"?
+			filledPixels := 0
+			for row = 0; row < len(colorMap) && filledPixels < Threshold; row++ {
+				for col := 0; col < len(colorMap[row]) && filledPixels < Threshold; col++ {
+					if colorMap[row][col] < 32 {
+						filledPixels += FloodFill4(col, row, colorMap[row][col])
+					}
 				}
-				/* FilledPixels is a global variable which FloodFill4 modifies...
-				 * I know it's ugly, but as it is now, this is a hack! :)
-				 */
-				if FilledPixels > Threshold {
-					goto NorthPoleFinished
-				}
-				row += YRange
 			}
-		}
-		log.Printf("filled pixels: %v\n", time.Now().Sub(started))
+			log.Printf("filled %8d/%8d north pixels: %v\n", filledPixels, Threshold, time.Now().Sub(started))
 
-	NorthPoleFinished:
-		FilledPixels = 0
-		/* i==y, j==x */
-		for i = YRange - 1; i > 0; i-- { /* fix */
-			for j, row = 0, 0; j < XRange; j++ {
-				Color = WorldMapArray[row+i]
-				if Color < 32 {
-					FloodFill4(j, i, Color)
+			// fill from the "south"?
+			filledPixels = 0
+			/* i==y, j==x */
+			for row = 0; row < len(colorMap) && filledPixels < Threshold; row++ {
+				for col := len(colorMap[row]) - 1; col >= 0 && filledPixels < Threshold; col-- {
+					if colorMap[row][col] < 32 {
+						filledPixels += FloodFill4(col, row, colorMap[row][col])
+					}
 				}
-				/* FilledPixels is a global variable which FloodFill4 modifies...
-				 * I know it's ugly, but as it is now, this is a hack! :)
-				 */
-				if FilledPixels > Threshold {
-					goto Finished
-				}
-				row += YRange
 			}
+			log.Printf("filled %8d/%8d south pixels: %v\n", filledPixels, Threshold, time.Now().Sub(started))
 		}
-		log.Printf("filled north pole: %v\n", time.Now().Sub(started))
-	Finished:
 	}
 	log.Printf("finished map generation: %v\n", time.Now().Sub(started))
 
@@ -410,39 +374,43 @@ func main() {
 }
 
 /* 4-connective floodfill algorithm which I use for constructing the ice-caps.*/
-func FloodFill4(x, y, OldColor int) {
-	if WorldMapArray[x*YRange+y] == OldColor {
-		if WorldMapArray[x*YRange+y] < 16 {
-			WorldMapArray[x*YRange+y] = 32
+func FloodFill4(x, y, oldColor int) int {
+	filledPixels := 0
+	if colorMap[y][x] == oldColor {
+		if colorMap[y][x] < 16 {
+			colorMap[y][x] = 32
 		} else {
-			WorldMapArray[x*YRange+y] += 17
+			colorMap[y][x] += 17
 		}
 
-		FilledPixels++
+		filledPixels++
 		if y-1 > 0 {
-			FloodFill4(x, y-1, OldColor)
+			filledPixels += FloodFill4(x, y-1, oldColor)
 		}
 		if y+1 < YRange {
-			FloodFill4(x, y+1, OldColor)
+			filledPixels += FloodFill4(x, y+1, oldColor)
 		}
 		if x-1 < 0 {
-			FloodFill4(XRange-1, y, OldColor) /* fix */
+			filledPixels += FloodFill4(XRange-1, y, oldColor) /* fix */
 		} else {
-			FloodFill4(x-1, y, OldColor)
+			filledPixels += FloodFill4(x-1, y, oldColor)
 		}
-
 		if x+1 >= XRange { /* fix */
-			FloodFill4(0, y, OldColor)
+			filledPixels += FloodFill4(0, y, oldColor)
 		} else {
-			FloodFill4(x+1, y, OldColor)
+			filledPixels += FloodFill4(x+1, y, oldColor)
 		}
 	}
+	return filledPixels
 }
 
 /* Function that generates the worldmap */
 func FractureKachunk(width, height int) {
-	// decide if we're going to raise or lower
-	lower := rand.Intn(2) == 0
+	// decide the amount that we're going to raise or lower
+	bump := 1
+	if rand.Intn(2) == 0 {
+		bump = -1
+	}
 
 	// create a random line on the world map
 	var m, b float64
@@ -460,7 +428,7 @@ func FractureKachunk(width, height int) {
 	}
 
 	// y = (() / ()) x
-	log.Printf("kachunk: line y = %f x + %f: lower %v\n", m, b, lower)
+	log.Printf("kachunk: line y = %f x + %f: bump %d\n", m, b, bump)
 
 	// move all the points below the line up or down
 	for x := 0; x < width; x++ {
@@ -469,11 +437,10 @@ func FractureKachunk(width, height int) {
 			yl := m*xl + b
 			if float64(y)-yl > 0 {
 				// point is below the line
-				if lower {
-					WorldMapArray[x*YRange+y]--
-				} else {
-					WorldMapArray[x*YRange+y]++
+				if heightMap[y][x] == math.MinInt {
+					heightMap[y][x] = 0
 				}
+				heightMap[y][x] += bump
 			}
 		}
 	}
@@ -481,70 +448,68 @@ func FractureKachunk(width, height int) {
 
 /* Function that generates the worldmap */
 func GenerateMercatorWorldMap(lower bool) {
+	// decide the amount that we're going to raise or lower
+	bump := 1
+	if lower {
+		bump = -1
+	}
+
 	/* Create a random greatcircle...
 	 * Start with an equator and rotate it */
-	Alpha := (rand64() - 0.5) * math.Pi /* Rotate around x-axis */
-	Beta := (rand64() - 0.5) * math.Pi  /* Rotate around y-axis */
+	alpha := (rand64() - 0.5) * math.Pi /* Rotate around x-axis */
+	beta := (rand64() - 0.5) * math.Pi  /* Rotate around y-axis */
 
-	TanB := math.Tan(math.Acos(math.Cos(Alpha) * math.Cos(Beta)))
+	tanB := math.Tan(math.Acos(math.Cos(alpha) * math.Cos(beta)))
 
-	Xsi := int((float64(XRange)/2 - float64(XRange)/math.Pi) * Beta)
+	xsi := int((float64(XRange)/2 - float64(XRange)/math.Pi) * beta)
 
-	for Phi, row := 0, 0; Phi < XRange/2; Phi++ {
-		// ( tan ( atan ( SinIterPhi[Xsi-Phi+XRange] * TanB ) / 2 ) * YRangeDiv2 ) + YRangeDiv2;
-		Theta := int((math.Tan(math.Atan(SinIterPhi[Xsi-Phi+XRange]*TanB)/2) * YRangeDiv2) + YRangeDiv2)
-
-		if lower {
-			/* lower southern hemisphere */
-			if WorldMapArray[row+Theta] != math.MinInt {
-				WorldMapArray[row+Theta]--
-			} else {
-				WorldMapArray[row+Theta] = -1
-			}
+	for row, phi := 0, 0; phi < XRange/2; phi++ {
+		theta := int((math.Tan(math.Atan(SinIterPhi[xsi-phi+XRange]*tanB)/2) * YRangeDiv2) + YRangeDiv2)
+		if heightMap[theta][phi] == math.MinInt {
+			heightMap[theta][phi] = 0
 		} else {
-			/* raise southern hemisphere */
-			if WorldMapArray[row+Theta] != math.MinInt {
-				WorldMapArray[row+Theta]++
-			} else {
-				WorldMapArray[row+Theta] = 1
-			}
+			heightMap[theta][phi] += bump
 		}
-		row += YRange
+		row++
 	}
 }
 
 /* Function that generates the worldmap */
 func GenerateSquareWorldMap(lower bool) {
+	// decide the amount that we're going to raise or lower
+	bump := 1
+	if lower {
+		bump = -1
+	}
+
 	/* Create a random greatcircle...
 	 * Start with an equator and rotate it */
-	Alpha := (rand64() - 0.5) * math.Pi /* Rotate around x-axis */
-	Beta := (rand64() - 0.5) * math.Pi  /* Rotate around y-axis */
+	alpha := (rand64() - 0.5) * math.Pi /* Rotate around x-axis */
+	beta := (rand64() - 0.5) * math.Pi  /* Rotate around y-axis */
 
-	TanB := math.Tan(math.Acos(math.Cos(Alpha) * math.Cos(Beta)))
+	tanB := math.Tan(math.Acos(math.Cos(alpha) * math.Cos(beta)))
 
-	Xsi := int((float64(XRange)/2 - float64(XRange)/math.Pi) * Beta)
+	xsi := int((float64(XRange)/2 - float64(XRange)/math.Pi) * beta)
 
-	for Phi, row := 0, 0; Phi < XRange/2; Phi++ {
-		Theta := int((YRangeDivPI * math.Atan(SinIterPhi[Xsi-Phi+XRange]*TanB)) + YRangeDiv2)
-		if lower {
-			/* lower southern hemisphere */
-			if WorldMapArray[row+Theta] != math.MinInt {
-				WorldMapArray[row+Theta]--
-			} else {
-				WorldMapArray[row+Theta] = -1
-			}
+	for row, phi := 0, 0; phi < XRange/2; phi++ {
+		theta := int((YRangeDivPI * math.Atan(SinIterPhi[xsi-phi+XRange]*tanB)) + YRangeDiv2)
+		if heightMap[row][theta] == math.MinInt {
+			heightMap[row][theta] = 0
 		} else {
-			/* raise southern hemisphere */
-			if WorldMapArray[row+Theta] != math.MinInt {
-				WorldMapArray[row+Theta]++
-			} else {
-				WorldMapArray[row+Theta] = 1
-			}
+			heightMap[row][theta] += bump
 		}
-		row += YRange
+		row++
 	}
 }
 
 func rand64() float64 {
 	return rand.Float64()
+}
+
+func twoDimensionalArray(width, height int) [][]int {
+	a := make([][]int, height, height)
+	for y := 0; y < height; y++ {
+		a[y] = make([]int, width, width)
+	}
+	return a
 }
