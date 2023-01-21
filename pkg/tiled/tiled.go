@@ -1,7 +1,7 @@
 /*
  * worldgen - fractured terrain generator
  * Copyright (C) 1999  John Olsson
- * Copyright (C) 2022 Michael D Henderson
+ * Copyright (C) 2023 Michael D Henderson
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published
@@ -17,4 +17,16 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package main
+package tiled
+
+import (
+	"log"
+	"time"
+)
+
+func Run(saveFile string) error {
+	started := time.Now()
+
+	log.Printf("tile: created %s: %v\n", saveFile, time.Now().Sub(started))
+	return nil
+}
