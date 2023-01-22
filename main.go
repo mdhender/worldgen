@@ -22,18 +22,30 @@ package main
 import (
 	"github.com/mdhender/worldgen/pkg/fractal"
 	"github.com/mdhender/worldgen/pkg/tiled"
+	"github.com/mdhender/worldgen/sliced"
 	"log"
+	"math/rand"
 	"os"
 )
 
 func main() {
-	doFractal, doTiled := false, false
+	Seed := 1812 // 0x638bb317ac47a6ba
+	rand.Seed(int64(Seed))
+	//rand.Seed(time.Now().UnixNano())
+
+	doFractal, doSliced, doTiled := false, false, false
+	height, width, iterations := 600, 1_200, 1_000
 	var saveFile string
 	for _, arg := range os.Args[1:] {
 		if arg == "--fractal" {
 			doFractal = true
 			if saveFile == "" {
 				saveFile = "fractal.png"
+			}
+		} else if arg == "--sliced" {
+			doSliced = true
+			if saveFile == "" {
+				saveFile = "sliced.png"
 			}
 		} else if arg == "--tiled" {
 			doTiled = true
@@ -48,8 +60,13 @@ func main() {
 			log.Fatal(err)
 		}
 	}
+	if doSliced {
+		if err := sliced.Run(height, width, iterations, saveFile); err != nil {
+			log.Fatal(err)
+		}
+	}
 	if doTiled {
-		if err := tiled.Run(saveFile); err != nil {
+		if err := tiled.Run(height, width, iterations, saveFile); err != nil {
 			log.Fatal(err)
 		}
 	}

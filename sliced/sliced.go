@@ -17,7 +17,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package tiled
+package sliced
 
 import (
 	"log"
@@ -34,10 +34,17 @@ func Run(height, width, iterations int, saveFile string) error {
 		// decide the amount that we're going to raise or lower
 		switch rand.Intn(2) {
 		case 0:
-			fracture(rand.Intn(2) == 0, 1, world)
+			fracture(1, world)
 		case 1:
-			fracture(rand.Intn(2) == 0, -1, world)
+			fracture(-1, world)
 		}
+		//// decide the amount that we're going to raise or lower
+		//switch rand.Intn(2) {
+		//case 0:
+		//	smite(1, world)
+		//case 1:
+		//	smite(-1, world)
+		//}
 		iterations--
 	}
 
@@ -48,12 +55,44 @@ func Run(height, width, iterations int, saveFile string) error {
 	if err := savePNG(saveFile, img); err != nil {
 		return err
 	}
-	log.Printf("tile: created %s: %v\n", saveFile, time.Now().Sub(started))
 
+	log.Printf("slice: created %s: %v\n", saveFile, time.Now().Sub(started))
 	return nil
 }
 
-func fracture(inside bool, bump float64, world [][]float64) {
+func fracture(bump float64, world [][]float64) {
+	height, width := len(world), len(world[0])
+
+	// create a random line on the world map
+	var m, b float64
+	for {
+		x1, y1 := rand.Intn(width), rand.Intn(height)
+		x2, y2 := rand.Intn(width), rand.Intn(height)
+		if x1 == x2 && y1 == y2 { // want a line, not a single point
+			continue
+		} else if y1 == y2 { // can't have vertical lines
+			continue
+		}
+		m = float64(x1-x2) / float64(y1-y2)
+		b = rand.Float64() * float64(height)
+		break
+	}
+
+	// y = (() / ()) x
+	//log.Printf("kachunk: line y = m(%f)x + b(%f): bump %f\n", m, b, bump)
+
+	// move all the points below the line up or down
+	for x := 0; x < width; x++ {
+		mxb := int(m*float64(x) + b)
+		for y := 0; y < height; y++ {
+			if y > mxb { // point is above the line
+				world[y][x] += bump
+			}
+		}
+	}
+}
+
+func smite(bump float64, world [][]float64) {
 	height, width := len(world), len(world[0])
 	diagonal := math.Sqrt(float64(height*height + width*width))
 	radius := 0
@@ -65,12 +104,13 @@ func fracture(inside bool, bump float64, world [][]float64) {
 	cx, cy := rand.Intn(width), rand.Intn(height)
 	//log.Printf("fracture: cx %3d cy %3d radius %3d\n", cx, cy, radius)
 
-	// bump all points within in the radius
+	// bump all points within the radius
 	rSquared := radius * radius
 	for y := 0; y < height; y++ {
+		dy := (y - cy) * (y - cy)
 		for x := 0; x < width; x++ {
-			dx, dy := x-cx, y-cy
-			isInside := dx*dx+dy*dy < rSquared
+			dx := (x - cx) * (x - cx)
+			isInside := dx+dy < rSquared
 			if !isInside {
 				world[y][x] += bump
 			}
