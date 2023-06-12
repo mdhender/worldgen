@@ -1,26 +1,24 @@
-/*
- * worldgen - fractured terrain generator
- * Copyright (C) 1999  John Olsson
- * Copyright (C) 2023 Michael D Henderson
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published
- * by the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */
+// worldgen - fractured terrain generator
+// Copyright (c) 2022-2023 Michael D Henderson
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published
+// by the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 package fractal
 
 import (
 	"fmt"
+	"github.com/mdhender/worldgen/pkg/fnm"
 	"image"
 	"image/png"
 	"log"
@@ -71,7 +69,7 @@ var (
 	YRangeDivPI float64
 )
 
-func Run() error {
+func Run(seed int) error {
 	started := time.Now()
 
 	// save color card
@@ -132,14 +130,12 @@ func Run() error {
 		SinIterPhi[i+XRange] = SinIterPhi[i]
 	}
 
-	Seed := 0x638bb317ac47a6ba
-	//rand.Seed(time.Now().UnixNano())
-	rand.Seed(int64(Seed))
+	rand.Seed(int64(seed))
 
 	NumberOfFaults := 100
 	PercentWater := 10
 	PercentIce := 10
-	log.Printf("Seed: %d\n", Seed)
+	log.Printf("Seed: %d\n", seed)
 	log.Printf("Number of faults: %d\n", NumberOfFaults)
 	log.Printf("Percent water: %d\n", PercentWater)
 	log.Printf("Percent ice: %d\n", PercentIce)
@@ -318,9 +314,10 @@ func Run() error {
 
 	// create map
 	var m *image.RGBA
-	var saveFile string
+	var kind string
 	switch ProjectionType {
 	case ORTHOGRAPHIC_NP, ORTHOGRAPHIC_SP, STEREOGRAPHIC_NP, STEREOGRAPHIC_SP, GNOMIC_NP, GNOMIC_SP, LAMBERT_AREAP_NP, LAMBERT_AREAP_SP:
+		kind = "other"
 		/*
 		 * If it's a spherical projection, it will be a square map we output.
 		 */
@@ -328,25 +325,24 @@ func Run() error {
 		if 2*(Height/2)-Height != 0 {
 			Diameter++
 		}
-		saveFile = "other"
 		m = Project(ProjectionType, Diameter, Diameter, ScrollDegrees)
 	case KACHUNK:
-		saveFile = "kachunk"
+		kind = "kachunk"
 		m = Project(ProjectionType, XRange, YRange, 0)
 	case MERCATOR:
-		saveFile = "mercator"
+		kind = "mercator"
 		m = Project(ProjectionType, XRange, YRange, 0)
 	case SPHERICAL:
 		// spherical projection, but still a square map on output
+		kind = "spherical"
 		Diameter := Height
 		if 2*(Height/2)-Height != 0 {
 			Diameter++
 		}
-		saveFile = "spherical"
 		if showGlobe {
 			for degrees := 0; degrees < 360; degrees = degrees + 15 {
 				m = Project(ProjectionType, Diameter, Diameter, degrees)
-				outFile, err := os.Create(fmt.Sprintf("%s-%03d.png", saveFile, degrees))
+				outFile, err := os.Create(fmt.Sprintf("%x-%s-%03d.png", seed, kind, degrees))
 				if err != nil {
 					return err
 				}
@@ -356,13 +352,13 @@ func Run() error {
 		}
 		m = Project(ProjectionType, Diameter, Diameter, ScrollDegrees)
 	case SQUARE:
-		saveFile = "square"
+		kind = "square"
 		m = Project(ProjectionType, XRange, YRange, 0)
 	default:
-		saveFile = "rectangle"
+		kind = "rectangle"
 		m = Project(ProjectionType, XRange, YRange, 0)
 	}
-	saveFile = fmt.Sprintf("%x-%s.png", Seed, saveFile)
+	saveFile := fnm.UniqueName("fractal-"+kind, seed)
 	outFile, err := os.Create(saveFile)
 	if err != nil {
 		return err
