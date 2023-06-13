@@ -19,7 +19,9 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"github.com/mdhender/worldgen/pkg/gen"
 	"github.com/mdhender/worldgen/pkg/generator"
 	"github.com/mdhender/worldgen/pkg/sliced"
 	"github.com/mdhender/worldgen/pkg/smite"
@@ -29,6 +31,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 )
@@ -41,6 +44,7 @@ func main() {
 
 	router := way.NewRouter()
 
+	router.Handle("GET", "/", &templateHandler{filename: "index.gohtml"})
 	router.HandleFunc("GET", "/fracture", nextSeedHandler("fracture"))
 	router.HandleFunc("GET", "/fracture/:seed", fractureHandler(height, width, iterations))
 	router.HandleFunc("GET", "/smite", nextSeedHandler("smite"))
@@ -49,8 +53,55 @@ func main() {
 	router.HandleFunc("GET", "/tile/:seed", tileHandler(height, width, iterations))
 	router.HandleFunc("GET", "/tiled", nextSeedHandler("tiled"))
 	router.HandleFunc("GET", "/tiled/:seed", tiledHandler(height, width, iterations))
+	router.HandleFunc("GET", "/asteroids", nextSeedHandler("asteroids"))
+	router.HandleFunc("GET", "/asteroids/:seed", asteroidsHandler(height, width, iterations))
+	router.HandleFunc("GET", "/customize/:seed", customizeHandler("../templates", "customize.gohtml"))
+	router.HandleFunc("GET", "/greyscale/:seed", greyscaleHandler())
 
 	log.Fatalln(http.ListenAndServe(":8080", router))
+}
+
+func asteroidsHandler(height, width, iterations int) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		started := time.Now()
+
+		pSeed := way.Param(r.Context(), "seed")
+		if pSeed == "" {
+			http.Error(w, "missing seed", http.StatusBadRequest)
+			return
+		}
+		seed, err := strconv.ParseUint(pSeed, 16, 64)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("%v", err), http.StatusBadRequest)
+			return
+		}
+
+		m := gen.New(height, width, rand.New(rand.NewSource(int64(seed))))
+		m.RandomFractureCircle(iterations)
+		m.Normalize()
+
+		png, err := m.AsPNG(m.AsImage())
+		if err != nil {
+			http.Error(w, fmt.Sprintf("%v", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("WG-Seed", fmt.Sprintf("%x", seed))
+		w.WriteHeader(http.StatusOK)
+		w.Write(png)
+
+		log.Printf("asteroidsHandler: %x elapsed %v\n", seed, time.Now().Sub(started))
+
+		data, err := json.Marshal(m)
+		if err != nil {
+			log.Printf("json: %v\n", err)
+		} else if err = os.WriteFile(fmt.Sprintf("%x-asteroids.json", seed), data, 0644); err != nil {
+			log.Printf("json: %v\n", err)
+		} else {
+			log.Printf("json: created %x-asteroids.json\n", seed)
+		}
+	}
 }
 
 func fractureHandler(height, width, iterations int) http.HandlerFunc {
