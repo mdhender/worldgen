@@ -17,40 +17,48 @@
 package smite
 
 import (
+	"image"
 	"log"
 	"math"
 	"math/rand"
 	"time"
 )
 
-func Run(height, width, iterations int, saveFile string) error {
-	started := time.Now()
-
+func Generate(height, width, iterations int) (*image.RGBA, error) {
 	world := twoDimensionalArray(height, width)
 	for iterations > 0 {
 		// decide the amount that we're going to raise or lower
 		switch rand.Intn(2) {
 		case 0:
-			smite(1, world)
+			Smite(1, world)
 		case 1:
-			smite(-1, world)
+			Smite(-1, world)
 		}
 		iterations--
 	}
 
 	normalizeMap(world)
 
-	img := generateImage(world)
+	return generateImage(world), nil
+}
 
-	if err := savePNG(saveFile, img); err != nil {
+func Run(height, width, iterations int, saveFile string) error {
+	started := time.Now()
+	img, err := Generate(height, width, iterations)
+	if err != nil {
 		return err
 	}
+	err = savePNG(saveFile, img)
+	if err != nil {
+		return err
+	}
+
 	log.Printf("smite: created %s: %v\n", saveFile, time.Now().Sub(started))
 
 	return nil
 }
 
-func smite(bump float64, world [][]float64) {
+func Smite(bump float64, world [][]float64) {
 	height, width := len(world), len(world[0])
 	diagonal := math.Sqrt(float64(height*height + width*width))
 	radius := 0

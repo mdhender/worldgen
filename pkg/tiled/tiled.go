@@ -17,49 +17,58 @@
 package tiled
 
 import (
+	"image"
 	"log"
 	"math"
 	"math/rand"
 	"time"
 )
 
-func Run(height, width, iterations int, saveFile string) error {
-	started := time.Now()
-
+func Generate(height, width, iterations int, rnd *rand.Rand) (*image.RGBA, error) {
 	world := twoDimensionalArray(height, width)
 	for iterations > 0 {
 		// decide the amount that we're going to raise or lower
-		switch rand.Intn(2) {
+		switch rnd.Intn(2) {
 		case 0:
-			fracture(rand.Intn(2) == 0, 1, world)
+			fracture(rnd.Intn(2) == 0, 1, world, rnd)
 		case 1:
-			fracture(rand.Intn(2) == 0, -1, world)
+			fracture(rnd.Intn(2) == 0, -1, world, rnd)
 		}
 		iterations--
 	}
 
 	normalizeMap(world)
 
-	img := generateImage(world)
+	return generateImage(world), nil
+}
 
-	if err := savePNG(saveFile, img); err != nil {
+func Run(height, width, iterations int, saveFile string, rnd *rand.Rand) error {
+	started := time.Now()
+
+	img, err := Generate(height, width, iterations, rnd)
+	if err != nil {
 		return err
 	}
+	err = savePNG(saveFile, img)
+	if err != nil {
+		return err
+	}
+
 	log.Printf("tile: created %s: %v\n", saveFile, time.Now().Sub(started))
 
 	return nil
 }
 
-func fracture(inside bool, bump float64, world [][]float64) {
+func fracture(inside bool, bump float64, world [][]float64, rnd *rand.Rand) {
 	height, width := len(world), len(world[0])
 	diagonal := math.Sqrt(float64(height*height + width*width))
 	radius := 0
-	for n := rand.Float64(); radius < 1; n = rand.Float64() {
+	for n := rnd.Float64(); radius < 1; n = rnd.Float64() {
 		radius = int(n * n * diagonal / 2)
 	}
 	//log.Printf("fracture: height %3d width %3d diagonal %6.3f radius %3d\n", height, width, diagonal, radius)
 
-	cx, cy := rand.Intn(width), rand.Intn(height)
+	cx, cy := rnd.Intn(width), rnd.Intn(height)
 	//log.Printf("fracture: cx %3d cy %3d radius %3d\n", cx, cy, radius)
 
 	// bump all points within in the radius
@@ -106,7 +115,7 @@ func normalizeMap(world [][]float64) {
 			}
 		}
 	}
-	log.Println(minValue, maxValue, deltaValue)
+	//log.Println(minValue, maxValue, deltaValue)
 }
 
 func twoDimensionalArray(height, width int) [][]float64 {

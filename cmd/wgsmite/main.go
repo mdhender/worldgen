@@ -19,8 +19,12 @@ package main
 import (
 	"github.com/mdhender/worldgen/pkg/fnm"
 	"github.com/mdhender/worldgen/pkg/smite"
+	"image"
+	"image/png"
 	"log"
 	"math/rand"
+	"os"
+	"time"
 )
 
 func main() {
@@ -28,9 +32,31 @@ func main() {
 	rand.Seed(int64(Seed))
 	//rand.Seed(time.Now().UnixNano())
 
+	started := time.Now()
+
 	height, width, iterations := 600, 1_200, 10_000
 	saveFile := fnm.UniqueName("smite", Seed)
-	if err := smite.Run(height, width, iterations, saveFile); err != nil {
+
+	img, err := smite.Generate(height, width, iterations)
+	if err != nil {
 		log.Fatal(err)
 	}
+
+	err = savePNG(saveFile, img)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Printf("smite: created %s: %v\n", saveFile, time.Now().Sub(started))
+}
+
+func savePNG(filename string, m *image.RGBA) error {
+	outFile, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	if err := png.Encode(outFile, m); err != nil {
+		return err
+	}
+	return outFile.Close()
 }
