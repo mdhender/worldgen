@@ -19,7 +19,6 @@ package gen
 
 import (
 	"bytes"
-	"fmt"
 	"image"
 	"image/png"
 	"log"
@@ -204,61 +203,43 @@ func (m *Map) RandomFractureCircle(n int) {
 	}
 }
 
-func (m *Map) Shift(dx, dy int) error {
+func (m *Map) ShiftX(dx int) {
 	height, width := m.Height(), m.Width()
 
-	if dx < 0 || dx > width {
-		return fmt.Errorf("invalid dx shift")
-	} else if dx == width {
-		dx = 0
+	// convert dx into range of 0...width
+	for dx < 0 {
+		dx += width
 	}
-	if dx = dx * -1; dx != 0 {
-		for y := 0; y < height; y++ {
-			shiftX(m.yx[y], dx)
-		}
-		log.Printf("shifted m x %d\n", dx)
+	for dx > width {
+		dx -= width
 	}
-
-	if dy < 0 || dy > height {
-		return fmt.Errorf("invalid dy shift")
-	} else if dy == height {
-		dy = 0
-	}
-	if dy != 0 {
-		shiftY(m.yx, dy)
-	}
-
-	return nil
-}
-
-func shiftX(s []int, n int) {
-	for n < 0 {
-		n += len(s)
-	}
-	for n > len(s) {
-		n -= len(s)
-	}
-	if n == 0 {
+	if dx == 0 {
 		return
 	}
-	tmp := make([]int, n)
-	copy(tmp, s[len(s)-n:])
-	copy(s[n:], s)
-	copy(s, tmp)
+	tmp := make([]int, dx)
+	for y := 0; y < height; y++ {
+		copy(tmp, m.yx[y][width-dx:])
+		copy(m.yx[y][dx:], m.yx[y])
+		copy(m.yx[y], tmp)
+	}
 }
 
-func shiftY(s [][]int, n int) {
-	for n < 0 {
-		n += len(s)
+func (m *Map) ShiftY(dy int) {
+	height := m.Height()
+
+	// convert dy into range of 0...height
+	for dy < 0 {
+		dy += height
 	}
-	for n > len(s) {
-		n -= len(s)
+	for dy > height {
+		dy -= height
 	}
-	if n == 0 {
+	if dy == 0 {
 		return
 	}
-	tmp := make([][]int, n)
-	copy(tmp, s[len(s)-n:])
-	copy(s[n:], s)
-	copy(s, tmp)
+	//shiftY(m.yx, dy)
+	tmp := make([][]int, dy)
+	copy(tmp, m.yx[height-dy:])
+	copy(m.yx[dy:], m.yx)
+	copy(m.yx, tmp)
 }

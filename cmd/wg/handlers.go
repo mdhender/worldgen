@@ -134,12 +134,11 @@ func cartoHandler() http.HandlerFunc {
 			http.Error(w, fmt.Sprintf("%v", err), http.StatusBadRequest)
 			return
 		}
-		if shiftX != 0 && shiftY != 0 {
-			m.Shift(m.Width()*shiftX/100, m.Height()*shiftY/100)
-		} else if shiftX != 0 {
-			m.Shift(m.Width()*shiftX/100, 0)
-		} else if shiftY != 0 {
-			m.Shift(0, m.Height()*shiftY/100)
+		if shiftX != 0 {
+			m.ShiftX(-1 * m.Width() * shiftX / 100)
+		}
+		if shiftY != 0 {
+			m.ShiftY(m.Height() * shiftY / 100)
 		}
 
 		// generate color map
