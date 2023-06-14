@@ -56,6 +56,7 @@ func main() {
 	router.HandleFunc("GET", "/asteroids", nextSeedHandler("asteroids"))
 	router.HandleFunc("GET", "/asteroids/:seed", asteroidsHandler(height, width, iterations))
 	router.HandleFunc("GET", "/customize/:seed", customizeHandler("../templates", "customize.gohtml"))
+	router.HandleFunc("GET", "/carto/:seed", cartoHandler())
 	router.HandleFunc("GET", "/greyscale/:seed", greyscaleHandler())
 
 	log.Fatalln(http.ListenAndServe(":8080", router))

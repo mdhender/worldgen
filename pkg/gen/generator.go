@@ -19,8 +19,10 @@ package gen
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	"image/png"
+	"log"
 	"math"
 	"math/rand"
 )
@@ -29,8 +31,8 @@ type Map struct {
 	height, width int
 	diagonal      float64
 	rnd           *rand.Rand
-	points        []float64
-	yx            [][]float64 // points indexed by y, x
+	points        []int
+	yx            [][]int // points indexed by y, x
 }
 
 func New(height, width int, rnd *rand.Rand) *Map {
@@ -39,8 +41,8 @@ func New(height, width int, rnd *rand.Rand) *Map {
 		width:    width,
 		diagonal: math.Sqrt(float64(height*height + width*width)),
 		rnd:      rnd,
-		points:   make([]float64, height*width, height*width),
-		yx:       make([][]float64, height),
+		points:   make([]int, height*width, height*width),
+		yx:       make([][]int, height),
 	}
 	for row := 0; row < height; row++ {
 		m.yx[row] = m.points[row*width : (row+1)*width]
@@ -66,7 +68,7 @@ func (m *Map) Width() int {
 	return m.width
 }
 
-func (m *Map) FractureCircle(bump float64) {
+func (m *Map) FractureCircle(bump int) {
 	height, width, diagonal := m.Height(), m.Width(), m.Diagonal()
 
 	// generate random radius for the circle
@@ -144,7 +146,7 @@ func FractureSlice(bump float64, world [][]float64) {
 
 // Normalize the values in the map to the range of 0..1
 func (m *Map) Normalize() {
-	// determine the range of values
+	// fetch the minimum value in the set of points
 	minValue, maxValue := m.points[0], m.points[0]
 	for _, val := range m.points {
 		if val < minValue {
@@ -154,21 +156,39 @@ func (m *Map) Normalize() {
 			maxValue = val
 		}
 	}
-	deltaValue := maxValue - minValue
-	if deltaValue+maxValue == 0 {
-		maxValue++
-	}
-	// now normalize
+	log.Printf("normalize: min %8d max %8d\n", minValue, maxValue)
+	// update the values in the set so that zero is now the minimum value
 	for n, val := range m.points {
-		val = (val - minValue) / (maxValue + deltaValue)
-		if val < 0 {
-			val = 0
-		} else if val > 1 {
-			val = 1
-		}
-		m.points[n] = val
+		m.points[n] = val - minValue
 	}
-	//log.Println(minValue, maxValue, deltaValue)
+	minValue = 0
+	// fetch the maximum value in the set of points
+	maxValue = m.points[0]
+	for _, val := range m.points {
+		if maxValue < val {
+			maxValue = val
+		}
+	}
+	log.Printf("normalize: min %8d max %8d\n", minValue, maxValue)
+	deltaValue := maxValue - minValue
+	if deltaValue == 0 {
+		// all the points are zero so there's no work to be done
+		return
+	}
+	// now normalize to range of 0..255
+	for n, val := range m.points {
+		m.points[n] = val * 255 / maxValue
+	}
+	minValue, maxValue = m.points[0], m.points[0]
+	for _, val := range m.points {
+		if val < minValue {
+			minValue = val
+		}
+		if maxValue < val {
+			maxValue = val
+		}
+	}
+	log.Printf("normalize: min %8d max %8d\n", minValue, maxValue)
 }
 
 func (m *Map) RandomFractureCircle(n int) {
@@ -182,4 +202,63 @@ func (m *Map) RandomFractureCircle(n int) {
 		}
 		n--
 	}
+}
+
+func (m *Map) Shift(dx, dy int) error {
+	height, width := m.Height(), m.Width()
+
+	if dx < 0 || dx > width {
+		return fmt.Errorf("invalid dx shift")
+	} else if dx == width {
+		dx = 0
+	}
+	if dx = dx * -1; dx != 0 {
+		for y := 0; y < height; y++ {
+			shiftX(m.yx[y], dx)
+		}
+		log.Printf("shifted m x %d\n", dx)
+	}
+
+	if dy < 0 || dy > height {
+		return fmt.Errorf("invalid dy shift")
+	} else if dy == height {
+		dy = 0
+	}
+	if dy != 0 {
+		shiftY(m.yx, dy)
+	}
+
+	return nil
+}
+
+func shiftX(s []int, n int) {
+	for n < 0 {
+		n += len(s)
+	}
+	for n > len(s) {
+		n -= len(s)
+	}
+	if n == 0 {
+		return
+	}
+	tmp := make([]int, n)
+	copy(tmp, s[len(s)-n:])
+	copy(s[n:], s)
+	copy(s, tmp)
+}
+
+func shiftY(s [][]int, n int) {
+	for n < 0 {
+		n += len(s)
+	}
+	for n > len(s) {
+		n -= len(s)
+	}
+	if n == 0 {
+		return
+	}
+	tmp := make([][]int, n)
+	copy(tmp, s[len(s)-n:])
+	copy(s[n:], s)
+	copy(s, tmp)
 }

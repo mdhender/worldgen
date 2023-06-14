@@ -6,6 +6,13 @@
 </head>
 <body>
 <p>Map {{.Seed}} ({{.Width}} x {{.Height}})</p>
+<p>Percent Water: {{.PctWater}}% Sea Level: {{ .SeaLevel }}</p>
+<p>Percent Ice: {{.PctIce}}% Ice Level: {{ .IceLevel }}</p>
+<img src="/carto/{{.Seed}}?pctWater={{ .PctWater }}&pctIce={{ .PctIce }}&shiftX={{ .ShiftX }}&shiftY={{ .ShiftY }}">
+<img src="/carto/{{.Seed}}?pctWater={{ .PctWater }}&pctIce={{ .PctIce }}">
 <img src="/greyscale/{{.Seed}}">
+<pre><code>
+{{ range .Histogram }}{{.}}{{ end }}
+</code></pre>
 </body>
 </html>

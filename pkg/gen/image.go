@@ -17,39 +17,45 @@
 package gen
 
 import (
+	"github.com/mdhender/worldgen/pkg/cmap"
 	"image"
 	"image/color"
-	"log"
 )
 
+// AsCarto assumes the map has been normalized to 0..255
+func (m *Map) AsCarto(cm cmap.ColorMap) *image.RGBA {
+	height, width := m.Height(), m.Width()
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			img.Set(x, y, cm[m.yx[y][x]])
+		}
+	}
+	return img
+}
+
+// AsGreyscale assumes the map has been normalized to 0..255
 func (m *Map) AsGreyscale() *image.RGBA {
 	height, width := m.Height(), m.Width()
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
-	minp, maxp := m.points[0], m.points[0]
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
-			pyx := m.yx[y][x]
-			if pyx < minp {
-				minp = pyx
-			}
-			if maxp < pyx {
-				maxp = pyx
-			}
-			val := uint8(pyx * 255)
+			val := uint8(m.yx[y][x])
 			pc := color.RGBA{R: val, G: val, B: val, A: 255}
 			img.Set(x, y, pc)
 		}
 	}
-	log.Printf("greyscale: %f %f\n", minp, maxp)
 	return img
 }
 
+// AsImage assumes the map has been normalized to 0..255
 func (m *Map) AsImage() *image.RGBA {
 	height, width := m.Height(), m.Width()
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
-			val := uint8(m.yx[y][x] * 49)
+			// scale point from 0..255 to 0..49
+			val := uint8(m.yx[y][x] * 49 / 255)
 			pc := color.RGBA{R: red[val], G: green[val], B: blue[val], A: 255}
 			img.Set(x, y, pc)
 		}

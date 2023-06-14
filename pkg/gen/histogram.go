@@ -16,43 +16,33 @@
 
 package gen
 
-import (
-	"encoding/json"
-	"math"
-)
-
-type mapJS struct {
-	Height int   `json:"height"`
-	Width  int   `json:"width"`
-	Points []int `json:"points"`
+// Histogram assumes that the map has been normalized to 0..255
+func (m *Map) Histogram() (hs [256]int) {
+	for _, val := range m.points {
+		hs[val] = hs[val] + 1
+	}
+	return hs
 }
 
-func (m *Map) MarshalJSON() ([]byte, error) {
-	a := mapJS{
-		Height: m.Height(),
-		Width:  m.Width(),
-		Points: m.points,
-	}
-	return json.Marshal(&a)
+func (m *Map) IceLevel(pct int) int {
+	return 200
 }
 
-func (m *Map) UnmarshalJSON(data []byte) error {
-	var a mapJS
-	if err := json.Unmarshal(data, &a); err != nil {
-		return err
+func (m *Map) SeaLevel(pct int) int {
+	threshold := pct * len(m.points) / 100
+	if threshold <= 1 {
+		return 1
+	} else if threshold >= len(m.points) {
+		return 254
 	}
 
-	m.height = a.Height
-	m.width = a.Width
-	m.diagonal = math.Sqrt(float64(m.height*m.height + m.width*m.width))
-	m.points = a.Points
-	m.yx = make([][]int, m.height, m.height)
-	for row := 0; row < m.height; row++ {
-		m.yx[row] = m.points[row*m.width : (row+1)*m.width]
+	// find the sea-level
+	pixels := 0
+	for n, val := range m.Histogram() {
+		if pixels += val; pixels > threshold {
+			return n
+		}
 	}
 
-	// keep the local from leaking?
-	a.Points = nil
-
-	return nil
+	return 254
 }
