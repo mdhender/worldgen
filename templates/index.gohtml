@@ -33,11 +33,25 @@
         </ul>
     </form>
 
+    <p>
+        Seed must be a valid hexadecimal number.
+    </p>
+    <p>
+        Percent Water and Ice are integers (not floats) and are the amount of pixels to allocate to each type.
+    </p>
+    <p>
+        Water is assigned starting from the lowest elevations; Ice starting from the highest.
+        Leftover pixels are assigned to terrain.
+    </p>
+    <p>
+        Shift X and Y are integers (not floats) and are the percentage amount to shift the image left or up.
+    </p>
+
     {{with .SecretRequired}}
-    <p>
-        WARNING: this is a slow VM.
-        Generating a new image may take up to 20 seconds.
-        Fetching cached images will be pretty fast, though.
-    <p>
+        <p>
+            WARNING: this is a slow VM.
+            Generating a new image may take up to 20 seconds.
+            Fetching cached images will be pretty fast, though.
+        </p>
     {{end}}
 {{end}}
