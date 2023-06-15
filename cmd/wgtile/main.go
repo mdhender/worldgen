@@ -30,7 +30,7 @@ func main() {
 
 	height, width, iterations := 600, 1_200, 10_000
 	saveFile := fnm.UniqueName("tile", Seed)
-	if err := tiled.Run(height, width, iterations, saveFile); err != nil {
+	if err := tiled.Run(height, width, iterations, saveFile, rand.New(rand.NewSource(int64(Seed)))); err != nil {
 		log.Fatal(err)
 	}
 }
