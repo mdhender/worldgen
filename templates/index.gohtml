@@ -32,4 +32,12 @@
             </li>
         </ul>
     </form>
+
+    {{with .SecretRequired}}
+    <p>
+        WARNING: this is a slow VM.
+        Generating a new image may take up to 20 seconds.
+        Fetching cached images will be pretty fast, though.
+    <p>
+    {{end}}
 {{end}}
