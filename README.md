@@ -26,17 +26,23 @@ A map generator.
   If you're running on a server, then you have to type in the secret to create new maps.
   (If you're running locally, this is field is not displayed and secrets are not required.)
 
-# Building
-1. Clone the repository.
-2. Build using `go build ./...`.
-
 # Running
 
 ## Mac or Linux
-Start the `cmd/wg/wg` executable.
+1. Clone the repository.
+2. Open a terminal and navigate to the root of the repository.
+3. Change to the `wg` source directory with `cd cmd/wg`.
+4. Build the executable with `go build`.
+5. Return to the repository root with `cd ../..`.
+6. Start the `wg` executable by running `cmd/wg/wg`.
 
 ## Windows
-Start the `cmd\wg\wg.exe` executable..
+1. Clone the repository.
+2. Open a terminal and navigate to the root of the repository.
+3. Change to the `wg` source directory with `cd cmd\wg`.
+4. Build the executable with `go build`.
+5. Return to the repository root with `cd ..\..`.
+6. Start the `wg` executable by running `.cmd\wg\wg.exe`.
 
 # Viewing
 Open `http://localhost:8080/` in your browser.
