@@ -1,31 +1,53 @@
-# Fractal Worldmap Generator
+# World Map Generator
 
-# Original C Version
-Creator: John Olsson
+A map generator.
 
-Thanks to Carl Burke for interesting discussions and suggestions of how to speed up the generation! :)
+## Options
+* Seed:
+  This the "seed" used to initialize the random number generator.
+  If you use the same seed, you'll get the same output.
+  This is helpful if you want to customize a map.
+* Percent Water:
+  This number controls the "sea level" in the map.
+  Higher values result in more oceans/seas and less land.
+  Weird values are either rejected or ignored.
+* Percent Ice:
+  Higher values result in more ice covered lands.
+  Ice starts at the highest elevations.
+  Lower elevations are covered as this value increases.
+* Shift X:
+  Moves the generated image left by the percentage amount.
+  Helpful if you want to center a certain area of the images.
+* Shift Y:
+  Moves the generated image up by the percentage amount.
+  Helpful if you want to center a certain area of the images.
+* Secret:
+  For combating spam.
+  If you're running on a server, then you have to type in the secret to create new maps.
+  (If you're running locally, this is field is not displayed and secrets are not required.)
 
-This program is provided as is, and it's basically a "hack".
-So if you want a better user interface, you will have to provide it by yourself!
+# Building
+1. Clone the repository.
+2. Build using `go build ./...`.
 
-For ideas about how to implement different projections,
-you can always look in WorldMapGenerator.c
-(the CGI program that generates the gifs on my www-page [http://www.lysator.liu.se/~johol/fwmg/fwmg.html].
+# Running
 
-Please visit my WWW-pages located at: [http://www.lysator.liu.se/~johol/].
+## Mac or Linux
+Start the `cmd/wg/wg` executable.
 
-You can send E-Mail to this address: johol@lysator.liu.se
+## Windows
+Start the `cmd\wg\wg.exe` executable..
 
-I compile this program with: ```gcc -O3 worldgen.c -lm -o gengif```
+# Viewing
+Open `http://localhost:8080/` in your browser.
 
-This program will write the GIF-file to a file which you are prompted to specify.
+## First time
+Note that it takes about ten seconds to generate a new image for any seed:
 
-To change size of the generated picture, change the default values of the variables XRange och YRange.
+    2023/06/14 17:32:18 POST /generate: json: created c0ffeecafe.json
+    2023/06/14 17:32:18 POST /generate: elapsed 6.342958125sn
 
-You use this program at your own risk! :)
+The results are cached so that viewing or customizing for the same seed value happens in a fraction of a second:
 
-When you run the program you are prompted to input three values:
-
-* Seed: This the "seed" used to initialize the random number generator. So if you use the same seed, you'll get the same sequence of random numbers...
-* Number of faults: This is how many iterations the program will do. If you want to know how it works, just enter 1, 2, 3,... etc. number of iterations and compare the different GIF-files.
-* PercentWater: This should be a value between 0 and 100 (you can input 1000 also, but I don't know what the program is up to then! :) The number tells the "ratio" between water and land. If you want a world with just a few islands, input a large value (EG. 80 or above), if you want a world with nearly no oceans, a value near 0 would do that.
+    2023/06/14 17:32:39 POST /generate: entering
+    2023/06/14 17:32:39 POST /generate: elapsed 251.442791msn

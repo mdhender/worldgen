@@ -29,9 +29,148 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
+
+func indexHandler(root string) http.HandlerFunc {
+	root = filepath.Clean(root)
+	rr := Renderer{}
+	for _, tmpl := range []string{"layout", "index"} {
+		rr.files = append(rr.files, filepath.Join(root, tmpl+".gohtml"))
+	}
+	log.Printf("index: %v\n", rr.files)
+
+	type Data struct {
+		SecretRequired bool
+	}
+	secretRequired := os.Getenv("WMG_SECRET") != ""
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		data := Data{SecretRequired: secretRequired}
+		rr.Render(w, r, data)
+	}
+}
+
+func notFoundHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = fmt.Fprintf(w, "This is not the page you are looking for")
+	}
+}
+
+func staticHandler(root, pfx string) http.HandlerFunc {
+	root = filepath.Clean(root)
+	if sb, err := os.Stat(root); err != nil {
+		log.Printf("static: %q: %v\n", root, err)
+		return func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		}
+	} else if !sb.IsDir() {
+		log.Printf("static: %q: is not a folder\n", root)
+		return func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		}
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		name := filepath.Clean(r.URL.Path)
+		if !strings.HasPrefix(name, pfx) {
+			//log.Printf("%s missing pfx %s\n", name, pfx)
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			return
+		} else {
+			name = name[len(pfx):]
+		}
+		//log.Printf("%s %s\n", pfx, name)
+
+		// try really hard to prevent serving dot files.
+		//log.Printf("%s %v\n", name, strings.Split(name, "/"))
+		if name == "." || name == "/" {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			return
+		} else {
+			for _, name := range strings.Split(name, "/") {
+				if len(name) != 0 && name[0] == '.' {
+					http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+					return
+				}
+			}
+		}
+
+		// path is the full path to the file
+		path := filepath.Join(root, name)
+		//log.Printf("%s %s\n", name, path)
+
+		// try not to serve directories or special files.
+		sb, err := os.Stat(filepath.Join(root, name))
+		if err != nil {
+			//log.Printf("%s %v\n", name, err)
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			return
+		} else if mode := sb.Mode(); mode.IsDir() {
+			//log.Printf("%s isDir\n", name)
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			return
+		} else if !mode.IsRegular() {
+			//log.Printf("%s !isRegular\n", name)
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			return
+		}
+
+		fp, err := os.Open(path)
+		if err != nil {
+			log.Printf("static: %s: %q: %v\n", pfx, path, err)
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			return
+		}
+
+		http.ServeContent(w, r, name, sb.ModTime(), fp)
+	}
+}
+
+func staticFileHandler(root, name string) http.HandlerFunc {
+	root = filepath.Clean(root)
+	if sb, err := os.Stat(root); err != nil {
+		log.Printf("static: %q: %v\n", root, err)
+		return func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		}
+	} else if !sb.IsDir() {
+		log.Printf("static: %q: is not a folder\n", root)
+		return func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		}
+	}
+
+	// path is the full path to the file
+	path := filepath.Join(root, name)
+	log.Printf("static: file: %s\n", path)
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		// try not to serve directories or special files.
+		sb, err := os.Stat(path)
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			return
+		} else if mode := sb.Mode(); mode.IsDir() {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			return
+		} else if !mode.IsRegular() {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			return
+		}
+
+		fp, err := os.Open(path)
+		if err != nil {
+			log.Printf("static: %s: %v\n", path, err)
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			return
+		}
+
+		http.ServeContent(w, r, name, sb.ModTime(), fp)
+	}
+}
 
 type templateHandler struct {
 	once     sync.Once
@@ -324,10 +463,5 @@ func greyscaleHandler() http.HandlerFunc {
 		w.Header().Set("Content-Type", "image/png")
 		w.WriteHeader(http.StatusOK)
 		w.Write(png)
-	}
-}
-
-func indexHandler(root, filename string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
 	}
 }

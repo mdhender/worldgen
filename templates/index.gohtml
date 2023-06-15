@@ -1,13 +1,35 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Fantasy World Map Generator</title>
-</head>
-<body>
-
-<footer>
-    <p>Derived from John Olsson's generator.</p>
-</footer>
-</body>
-</html>
+{{define "content"}}
+    <form action="/generate" method="post">
+        <ul>
+            <li>
+                <label for="seed">Seed:</label>
+                <input type="text" id="seed" name="seed" value="c0ffeecafe"/>
+            </li>
+            <li>
+                <label for="pct_water">Percent Water:</label>
+                <input type="text" id="pct_water" name="pct_water" value="55"/>
+            </li>
+            <li>
+                <label for="pct_ice">Percent Ice:</label>
+                <input type="text" id="pct_ice" name="pct_ice" value="8"/>
+            </li>
+            <li>
+                <label for="shift_x">Shift X:</label>
+                <input type="text" id="shift_x" name="shift_x" value="23"/>
+            </li>
+            <li>
+                <label for="shift_y">Shift Y:</label>
+                <input type="text" id="shift_y" name="shift_y" value="13"/>
+            </li>
+            {{with .SecretRequired}}
+            <li>
+                <label for="secret">Secret:</label>
+                <input type="text" id="secret" name="secret"/>
+            </li>
+            {{end}}
+            <li class="button">
+                <button type="submit">Submit</button>
+            </li>
+        </ul>
+    </form>
+{{end}}

@@ -32,32 +32,45 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 )
 
 func main() {
+
 	Seed := 0x638bb317ac47a6ba
 	rand.Seed(int64(Seed))
 
 	height, width, iterations := 600, 1_200, 10_000
 
+	templates := filepath.Join("..", "templates")
+	public := filepath.Join("..", "public")
+	css := filepath.Join(public, "css")
+
 	router := way.NewRouter()
 
-	router.Handle("GET", "/", &templateHandler{filename: "index.gohtml"})
-	router.HandleFunc("GET", "/fracture", nextSeedHandler("fracture"))
-	router.HandleFunc("GET", "/fracture/:seed", fractureHandler(height, width, iterations))
-	router.HandleFunc("GET", "/smite", nextSeedHandler("smite"))
-	router.HandleFunc("GET", "/smite/:seed", smiteHandler(height, width, iterations))
-	router.HandleFunc("GET", "/tile", nextSeedHandler("tile"))
-	router.HandleFunc("GET", "/tile/:seed", tileHandler(height, width, iterations))
-	router.HandleFunc("GET", "/tiled", nextSeedHandler("tiled"))
-	router.HandleFunc("GET", "/tiled/:seed", tiledHandler(height, width, iterations))
-	router.HandleFunc("GET", "/asteroids", nextSeedHandler("asteroids"))
-	router.HandleFunc("GET", "/asteroids/:seed", asteroidsHandler(height, width, iterations))
-	router.HandleFunc("GET", "/customize/:seed", customizeHandler("../templates", "customize.gohtml"))
-	router.HandleFunc("GET", "/carto/:seed", cartoHandler())
-	router.HandleFunc("GET", "/greyscale/:seed", greyscaleHandler())
+	router.Handle("GET", "/", indexHandler(templates))
+	router.Handle("GET", "/css...", staticHandler(css, "/css"))
+	router.Handle("GET", "/favicon.ico", staticFileHandler(public, "favicon.ico"))
+	router.Handle("POST", "/generate", generateHandler(height, width, iterations))
+
+	//router.Handle("GET", "/", &templateHandler{filename: "index.gohtml"})
+	//router.HandleFunc("GET", "/fracture", nextSeedHandler("fracture"))
+	//router.HandleFunc("GET", "/fracture/:seed", fractureHandler(height, width, iterations))
+	//router.HandleFunc("GET", "/smite", nextSeedHandler("smite"))
+	//router.HandleFunc("GET", "/smite/:seed", smiteHandler(height, width, iterations))
+	//router.HandleFunc("GET", "/tile", nextSeedHandler("tile"))
+	//router.HandleFunc("GET", "/tile/:seed", tileHandler(height, width, iterations))
+	//router.HandleFunc("GET", "/tiled", nextSeedHandler("tiled"))
+	//router.HandleFunc("GET", "/tiled/:seed", tiledHandler(height, width, iterations))
+	//router.HandleFunc("GET", "/asteroids", nextSeedHandler("asteroids"))
+	//router.HandleFunc("GET", "/asteroids/:seed", asteroidsHandler(height, width, iterations))
+	//router.HandleFunc("GET", "/customize/:seed", customizeHandler("../templates", "customize.gohtml"))
+	//router.HandleFunc("GET", "/carto/:seed", cartoHandler())
+	//router.HandleFunc("GET", "/greyscale/:seed", greyscaleHandler())
+
+	router.NotFound = notFoundHandler()
 
 	log.Fatalln(http.ListenAndServe(":8080", router))
 }
