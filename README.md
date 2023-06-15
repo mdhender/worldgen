@@ -34,7 +34,8 @@ A map generator.
 3. Change to the `wg` source directory with `cd cmd/wg`.
 4. Build the executable with `go build`.
 5. Return to the repository root with `cd ../..`.
-6. Start the `wg` executable by running `cmd/wg/wg`.
+6. Change to the `testdata` directory with `cd testdata`.
+7. Start the `wg` executable by running `../cmd/wg/wg`.
 
 ## Windows
 1. Clone the repository.
@@ -42,7 +43,8 @@ A map generator.
 3. Change to the `wg` source directory with `cd cmd\wg`.
 4. Build the executable with `go build`.
 5. Return to the repository root with `cd ..\..`.
-6. Start the `wg` executable by running `.cmd\wg\wg.exe`.
+6. Change to the `testdata` directory with `cd testdata`.
+7. Start the `wg` executable by running `..\cmd\wg\wg.exe`.
 
 # Viewing
 Open `http://localhost:8080/` in your browser.
